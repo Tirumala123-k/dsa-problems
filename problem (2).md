@@ -39,10 +39,8 @@ for(int i=0;i<N;i++){
     if(dp[j]==0) continue;
     double prev_finist_time=a[j].t+dist(a[j].px,a[j].py,a[j].dx,a[j].dy);
     double travel_time=dist(a[j].dx,a[j].dy,a[j].px,a[j].py);
-    if(prev_finish_time+travel_time<=a[i].t)
-    {
+    if(prev_finish_time+travel_time>a[i].t) continue;
       dp[i]=max(dp[i],dp[j]+profit);
-    }
   }
   answer=max(answer,dp[i]);
 }
