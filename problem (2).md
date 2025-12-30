@@ -1,180 +1,94 @@
-# SwiftWheel: Profit Maximization
+import math
 
-Time Limit: **2 seconds**
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    if not data:
+        return
+    N = int(data[0])
+    orders = []
+    idx = 1
+    for i in range(N):
+        t = int(data[idx])
+        x = int(data[idx+1])
+        y = int(data[idx+2])
+        p = int(data[idx+3])
+        q = int(data[idx+4])
+        otype = data[idx+5]
+        orders.append({
+            'id': i, 't': t, 'x': x, 'y': y, 'p': p, 'q': q, 'type': otype
+        })
+        idx += 6
+    # Sort orders by pickup time
+    orders.sort(key=lambda x: x['t'])
+    def get_dist(x1, y1, x2, y2):
+        d = math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+        return int(math.ceil(d))
+    # dp[i] = max profit where order i is the LAST order STARTED
+    dp = [0] * N
+    # Precompute individual order profits and durations
+    profits = []
+    for i in range(N):
+        profits.append(get_dist(orders[i]['x'], orders[i]['y'], orders[i]['p'], orders[i]['q']))
+    for i in range(N):
+        # 1. Base case: Can we reach order i from start (0,0) at time 0?
+        dist_from_start = get_dist(0, 0, orders[i]['x'], orders[i]['y'])
+        if dist_from_start <= orders[i]['t']:
+            dp[i] = profits[i]
+        else:
+            dp[i] = -float('inf') # Mark as unreachable
+        # 2. Try to transition from a previous order j
+        for j in range(i):
+            if dp[j] == -float('inf'):
+                continue
+            # Case A: Order j and Order i are independent (Sequential)
+            # We must check if we can pick up i after dropping off j (and whatever j was paired with)
+            # This requires knowing if j was part of a combo. To simplify, we'll handle combos 
+            # inside the loop as a single "mega-order".  
+            # Check if j was a standalone order
+            finish_time_j = orders[j]['t'] + profits[j]
+            dist_to_i = get_dist(orders[j]['p'], orders[j]['q'], orders[i]['x'], orders[i]['y'])
+            if finish_time_j + dist_to_i <= orders[i]['t']:
+                dp[i] = max(dp[i], dp[j] + profits[i])
+            # Case B: Order i is a Passenger picked up while Order j (Courier) is active
+            if orders[j]['type'] == 'C' and orders[i]['type'] == 'P':
+                dist_j_to_i = get_dist(orders[j]['x'], orders[j]['y'], orders[i]['x'], orders[i]['y'])
+                if orders[j]['t'] + dist_j_to_i <= orders[i]['t']:
+                    # This is a combo. However, the profit for i is already added.
+                    # We need to ensure that the logic doesn't double count or skip constraints.
+                    # A better DP approach for this specific rule:
+                    pass
+    # REFINED APPROACH for Courier/Passenger overlap:
+    # Let's redefine DP: dp[i] is max profit after COMPLETING order i's dropoff.
+    dp = [0] * N
+    # finish_info[i] stores (time, x, y) after order i is dropped
+    # Because of the overlap rule, we'll calculate transitions specifically.
+    for i in range(N):
+        # Option 1: Start with order i as the first order
+        if get_dist(0,0, orders[i]['x'], orders[i]['y']) <= orders[i]['t']:
+            dp[i] = profits[i]     
+        for j in range(i):
+            # Try to come from order j
+            # Scenario 1: j finished, then travel to i
+            end_time_j = orders[j]['t'] + profits[j]
+            if end_time_j + get_dist(orders[j]['p'], orders[j]['q'], orders[i]['x'], orders[i]['y']) <= orders[i]['t']:
+                dp[i] = max(dp[i], dp[j] + profits[i]) 
+            # Scenario 2: j was a Courier, i is a Passenger picked up during j
+            if orders[j]['type'] == 'C' and orders[i]['type'] == 'P':
+                if orders[j]['t'] + get_dist(orders[j]['x'], orders[j]['y'], orders[i]['x'], orders[i]['y']) <= orders[i]['t']:
+                    # We pick up j, then pick up i, drop i, then drop j.
+                    # Total profit = profit[j] + profit[i]
+                    # This "task" ends at orders[j].drop location at a specific time.
+                    # To handle this, we treat the "Combo" as a potential predecessor for future orders.
+                    combo_profit = profits[j] + profits[i]
+                    # Time finished = Time i dropped + dist(i_drop to j_drop)
+                    finish_time_combo = orders[i]['t'] + profits[i] + get_dist(orders[i]['p'], orders[i]['q'], orders[j]['p'], orders[j]['q'])
+                    # Now, can we take any order 'k' AFTER this combo? 
+                    # This suggests we need a slightly different DP or to update dp[i] 
+                    # considering i is the "last" order picked up.
+                    dp[i] = max(dp[i], (dp[j] - profits[j]) + combo_profit if dp[j] > 0 else combo_profit)
 
-Memory Limit: **256 MB**
+    print(max(dp) if dp else 0)
 
-## Problem
-
-SwiftWheel is a two-wheeler ride and courier service.  
-A driver receives a list of orders throughout the day.  
-Each order must be accepted **exactly at its scheduled pickup time** if chosen.
-
-Your task is to determine the **maximum profit** the driver can earn.
-
----
-
-## Order Format
-
-Each order consists of:
-
-- **T** — scheduled pickup time  
-- **x, y** — pickup coordinates  
-- **p, q** — drop coordinates  
-- **type** —  
-  - `P` for passenger  
-  - `C` for courier  
-
-To accept an order, the driver must be **at the pickup location at time T**. He can reach there before T and wait. But reaching late is not allowed.
-
----
-
-## Profit
-
-**Profit of an order:**
-
-$$
-profit = \lceil EuclideanDistance(pickup, drop) \rceil
-$$
-
-**Travel time between any two points:**
-
-$$
-travelTime = \lceil EuclideanDistance(pointA, pointB) \rceil
-$$
-
-
-
----
-
-## Rules
-
-1. Travel has no monetary cost.  
-2. Only **one courier order** may be carried at a time.  
-3. A courier and a passenger may be carried together, but:
-   - **Passenger trips cannot be interrupted**.
-   - No courier pickup or drop can occur during a passenger ride.
-4. The driver starts at time **0** at location **(0,0)**.  
-5. Every order may be accepted or rejected. If accepted, pickup time must be met exactly.
-
----
-
-## Input Format
-
-- The first line contains an integer **\( N \)** — the number of orders.
-- Each of the next **\( N \)** lines contains **six values** describing a single order:
-  - **$T_i$** — pickup time
-  - **$x_i, y_i$** — pickup coordinates
-  - **$p_i, q_i$** — drop coordinates
-  - **$\text{type}_i$** — a character `P` (passenger) or `C` (courier)
-
-
----
-
-## Output Format
-
-Output a single integer — the maximum total profit achievable.
-
----
-
-## Constraints
-
-- $1 \le N \le 2000$
-- $\lvert x_i \rvert, \lvert y_i \rvert, \lvert p_i \rvert, \lvert q_i \rvert \le 10^{6}$
-- $0 \le T_i \le 10^{9}$
-
----
-
-## Examples :-
-
-### Example 1
-
-#### **Input**
-```
-3
-3 0 0 3 4 P
-10 3 4 6 8 C
-20 6 8 7 8 P
-```
-
-#### **Output**
-```
-11
-```
-
-#### Explanation
-
-- **Order 1:** Pickup at time 3 at (0,0), drop at (3,4).  
-  Profit = ceil(distance) = ceil(5) = **5**.
-
-- **Order 2:** Pickup at time 10 at (3,4), drop at (6,8).  
-  Profit = ceil(distance) = ceil(5) = **5**.
-
-- **Order 3:** Pickup at time 20 at (6,8), drop at (7,8).  
-  Profit = ceil(distance) = **1**.
-
-From the starting point (0,0), the driver can:
-
-1. Accept order 1 (reachable at time 3).  
-2. Finish order 1 at time 3 + 5 = **8** at (3,4), then reach the pickup of order 2 at time 10.  
-3. Finish order 2 at time 15 at (6,8), then reach the pickup of order 3 at time 20.
-4. Finish order 3 at time 21 at (7,8)
-
-So, all 3 orders can be completed giving total profit of 11.
-
----
-
-### Example 2
-
-#### Input
-```
-2
-5 0 0 3 4 P
-7 3 4 8 4 C
-```
-#### Output
-```
-5
-```
-
-
-#### Explanation
-
-- **Order 1:** Must be picked at time 5 at (0,0).  
-  Profit = ceil(5) = **5**  
-  This order is always feasible from the starting point.
-
-- **Order 2:** Must be picked at time 7 at (3,4).
-  Profit = ceil(5) = **5**  
-  If order 1 is accepted, the driver finishes at time 10 → too late to reach pickup at time 7.  
-  So **order 1 and order 2 cannot be taken together**.
-
-Thus, the best choice is to accept either order 1 or order 2, giving total profit **5**.
-
----
-
-### Example 3
-
-#### Input
-```
-2
-5 3 4 15 4 C
-6 4 4 8 4 P
-```
-#### Output
-```
-16
-```
-
-#### Explanation
-
-- **Order 1:** Must be picked at time 5 at (3,4).  
-  Profit = ceil(12) = **12**  
-  This order is feasible from the starting point by reaching from (0,0) to (3,4) at time 5.
-
-- **Order 2:** Must be picked at time 6 at (4,4).  
-  Profit = ceil(4) = **4**  
-  If order 1 of courier is accepted, the driver can reach from (3,4) to (4,4) at time 6.  
-  As per rule, passenger needs to be dropped before the courier. So, passenger can be dropped at time 10 at (8,4) followed by courier drop at time 17 at (15,4).  
-  So both the orders can be taken together giving a total profit of 16.
-
+solve()
