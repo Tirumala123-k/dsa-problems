@@ -1,3 +1,54 @@
+#include<bits/stdc++.h>
+using namespace std;
+
+struct Order{
+  long t;
+  double px,py;
+  double dx,dy;
+  char type;
+};
+
+double dist(double x1,double x2,double y1,double y2)
+{
+  return squrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
+}
+int main()
+{
+  ios::sync_with_stdio(false);
+  cin.tie(nullptr);
+  int N;
+  cin>>N;
+
+  vector<Order>a(N);
+  for(int i=0;i<N;i++){
+    cin>>a[i].t>>a[i].px>>a[i].py>>a[i].dx>>a[i].dy>>a[i].type;
+  }
+  sort(a.begin(),a.end(),[](const Order &A, const Order &B){
+    return A.t<B.t;
+  }
+);
+vector<double>dp(N,0,0);
+double answer=0.0;
+for(int i=0;i<N;i++){
+  double profit = dist(a[i].px,a[i].py,a[i].dx,a[i].dy);
+  double travel_from_start=dist(0,0,a[i].px,a[i].py);
+  if(travel_from_start<=a[i].t){
+    dp[i]=profit;
+  }
+  for(int j=0;j<i;j++){
+    if(dp[j]==0) continue;
+    double prev_finist_time=a[j].t+dist(a[j].px,a[j].py,a[j].dx,a[j].dy);
+    double travel_time=dist(a[j].dx,a[j].dy,a[j].px,a[j].py);
+    if(prev_finish_time+travel_time<=a[i].t)
+    {
+      dp[i]=max(dp[i],dp[j]+profit);
+    }
+  }
+  answer=max(answer,dp[i]);
+}
+cout<<(long long)floor(answer)<<"\n";
+return 0;
+}
 # SwiftWheel: Profit Maximization
 
 Time Limit: **2 seconds**
